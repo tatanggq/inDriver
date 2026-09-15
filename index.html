@@ -1,4 +1,54 @@
-const channel = new BroadcastChannel('indriver_sync_channel');
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>inDriver Clone - Full Feature</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body, html { height: 100%; margin: 0; background-color: #121212; color: #ffffff; font-family: system-ui, sans-serif; overflow: hidden; }
+        #map { width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; z-index: 0; }
+        .app-shell { display: flex; flex-direction: column; height: 100vh; width: 100vw; position: relative; z-index: 10; pointer-events: none; justify-content: space-between; }
+        .interactive { pointer-events: auto; }
+        .gps-marker { background: rgba(59, 130, 246, 0.3); border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(255, 255, 255, 0.8); }
+        .gps-inner { background: #2563eb; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; }
+        #ui-card { min-height: 220px; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="app-shell">
+    <header class="interactive m-3 flex justify-between items-center p-3.5 bg-[#181a1c]/95 backdrop-blur-md rounded-2xl border border-zinc-800 shadow-xl">
+        <button id="menu-btn" class="text-white text-lg p-2"><i class="fa-solid fa-bars"></i></button>
+        <span id="header-title" class="text-xs font-bold text-[#c6ff00] uppercase tracking-wider">inDriver</span>
+        <button onclick="toggleRole()" id="switch-btn" class="text-[10px] bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-xl shadow-md">Switch</button>
+    </header>
+
+    <div class="interactive bg-[#16181a]/95 backdrop-blur-2xl border-t border-zinc-800 rounded-t-3xl p-5 shadow-2xl max-h-[75vh] overflow-y-auto" id="ui-card"></div>
+
+    <div id="sidebar" class="interactive fixed inset-y-0 left-0 z-50 w-4/5 max-w-sm bg-[#181a1c] transform -translate-x-full transition-transform duration-300 flex flex-col justify-between shadow-2xl border-r border-zinc-800">
+        <div class="p-5 bg-[#121416] border-b border-zinc-800 flex items-center space-x-3">
+            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100" class="w-12 h-12 rounded-full object-cover border border-[#c6ff00]">
+            <div><h3 class="font-bold text-sm text-white">Helmi Nurliansyah</h3><p class="text-xs text-yellow-400"><i class="fa-solid fa-star"></i> 5.00 (53)</p></div>
+        </div>
+        <div class="py-2 space-y-1 flex-1">
+            <a href="#" onclick="toggleRole(); closeSidebar();" class="flex items-center px-6 py-3 text-sm text-[#c6ff00] font-bold"><i class="fa-solid fa-rotate w-6"></i> Ganti Mode Aplikasi</a>
+        </div>
+    </div>
+    <div id="backdrop" class="interactive fixed inset-0 z-40 bg-black/60 hidden"></div>
+</div>
+
+<div id="map"></div>
+
+<script>
+    const channel = new BroadcastChannel('indriver_sync_channel');
     const urlParams = new URLSearchParams(window.location.search);
     let myRole = urlParams.get('role') || 'passenger';
     
@@ -39,7 +89,6 @@ const channel = new BroadcastChannel('indriver_sync_channel');
 
     let routePolyline = L.polyline([], { color: '#c6ff00', weight: 4, opacity: 0.85 }).addTo(map);
 
-    // Geolocation Tracker untuk Driver
     function toggleDriverTracking(enable) {
         if (enable && myRole === 'driver') {
             if (navigator.geolocation) {
@@ -49,7 +98,6 @@ const channel = new BroadcastChannel('indriver_sync_channel');
                     localOrder.driverCoord = [lat, lng];
                     driverGpsMarker.setLatLng([lat, lng]);
                     
-                    // Jika status sudah diterima/menuju jemput, update secara silent tanpa trigger status ulang
                     channel.postMessage(localOrder);
                     localStorage.setItem('indriver_active_order', JSON.stringify(localOrder));
                 }, (err) => {
@@ -105,7 +153,6 @@ const channel = new BroadcastChannel('indriver_sync_channel');
         myRole = (myRole === 'passenger') ? 'driver' : 'passenger';
         window.history.replaceState({}, '', `?role=${myRole}`);
         
-        // Atur ulang draggable marker berdasarkan role aktif
         if(myRole === 'passenger') {
             pickupMarker.dragging.enable();
             destMarker.dragging.enable();
@@ -140,7 +187,6 @@ const channel = new BroadcastChannel('indriver_sync_channel');
         }
     };
 
-    // Auto-sync interval
     setInterval(() => {
         const saved = localStorage.getItem('indriver_active_order');
         if(saved) {
@@ -305,3 +351,6 @@ const channel = new BroadcastChannel('indriver_sync_channel');
 
     document.getElementById('menu-btn').addEventListener('click', () => { document.getElementById('sidebar').classList.remove('-translate-x-full'); document.getElementById('backdrop').classList.remove('hidden'); });
     document.getElementById('backdrop').addEventListener('click', () => { closeSidebar(); });
+</script>
+</body>
+</html>
