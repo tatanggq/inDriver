@@ -1,82 +1,35 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>inDriver App - Fully Fixed</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Leaflet Map -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        body, html { height: 100%; margin: 0; background-color: #121212; color: #ffffff; font-family: system-ui, sans-serif; overflow: hidden; }
-        #map { width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; z-index: 0; }
-        .app-shell { display: flex; flex-direction: column; height: 100vh; width: 100vw; position: relative; z-index: 10; pointer-events: none; justify-content: space-between; }
-        .interactive { pointer-events: auto; }
-        .gps-marker { background: rgba(59, 130, 246, 0.3); border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(255, 255, 255, 0.8); }
-        .gps-inner { background: #2563eb; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; }
-        #ui-card { min-height: 220px; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
-    </style>
-</head>
-<body>
-
-<div class="app-shell">
-    <header class="interactive m-3 flex justify-between items-center p-3.5 bg-[#181a1c]/95 backdrop-blur-md rounded-2xl border border-zinc-800 shadow-xl">
-        <button id="menu-btn" class="text-white text-lg p-2"><i class="fa-solid fa-bars"></i></button>
-        <span id="header-title" class="text-xs font-bold text-[#c6ff00] uppercase tracking-wider">inDriver</span>
-        <button onclick="toggleRole()" id="switch-btn" class="text-[10px] bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-xl shadow-md">Switch</button>
-    </header>
-
-    <div class="interactive bg-[#16181a]/95 backdrop-blur-2xl border-t border-zinc-800 rounded-t-3xl p-5 shadow-2xl max-h-[75vh] overflow-y-auto" id="ui-card"></div>
-
-    <div id="sidebar" class="interactive fixed inset-y-0 left-0 z-50 w-4/5 max-w-sm bg-[#181a1c] transform -translate-x-full transition-transform duration-300 flex flex-col justify-between shadow-2xl border-r border-zinc-800">
-        <div class="p-5 bg-[#121416] border-b border-zinc-800 flex items-center space-x-3">
-            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100" class="w-12 h-12 rounded-full object-cover border border-[#c6ff00]">
-            <div><h3 class="font-bold text-sm text-white">Helmi Nurliansyah</h3><p class="text-xs text-yellow-400"><i class="fa-solid fa-star"></i> 5.00 (53)</p></div>
-        </div>
-        <div class="py-2 space-y-1 flex-1">
-            <a href="#" onclick="toggleRole(); closeSidebar();" class="flex items-center px-6 py-3 text-sm text-[#c6ff00] font-bold"><i class="fa-solid fa-rotate w-6"></i> Ganti Mode Aplikasi</a>
-        </div>
-    </div>
-    <div id="backdrop" class="interactive fixed inset-0 z-40 bg-black/60 hidden"></div>
-</div>
-
-<div id="map"></div>
-
-<script>
-    const channel = new BroadcastChannel('indriver_sync_channel');
+const channel = new BroadcastChannel('indriver_sync_channel');
     const urlParams = new URLSearchParams(window.location.search);
     let myRole = urlParams.get('role') || 'passenger';
     
     let calculatedFare = 9000;
     let routeDistanceKm = 1.2;
     let routeDurationMin = 3;
+    let driverCustomOfferPrice = 0;
+    let watchId = null;
 
     let localOrder = JSON.parse(localStorage.getItem('indriver_active_order') || JSON.stringify({ 
         status: 'idle', 
         price: 9000, 
         pickupCoord: [-7.0337, 107.5833], 
-        destCoord: [-7.0450, 107.6000]
+        destCoord: [-7.0450, 107.6000],
+        driverCoord: [-7.0337, 107.5833]
     }));
 
     const map = L.map('map', { zoomControl: false }).setView(localOrder.pickupCoord, 14);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 
     const pickupMarker = L.marker(localOrder.pickupCoord, { 
-        draggable: true, 
+        draggable: (myRole === 'passenger'), 
         icon: L.divIcon({ className: 'pj', html: '<div style="background:#ef4444; color:#fff; padding:3px 8px; border-radius:12px; font-size:10px; font-weight:bold; border:2px solid #000;"><i class="fa-solid fa-location-dot"></i> Jemput</div>', iconSize: [75, 26], iconAnchor: [37, 26] }) 
     }).addTo(map);
 
     const destMarker = L.marker(localOrder.destCoord, { 
-        draggable: true, 
+        draggable: (myRole === 'passenger'), 
         icon: L.divIcon({ className: 'pt', html: '<div style="background:#3b82f6; color:#fff; padding:3px 8px; border-radius:12px; font-size:10px; font-weight:bold; border:2px solid #000;"><i class="fa-solid fa-flag-checkered"></i> Tujuan</div>', iconSize: [75, 26], iconAnchor: [37, 26] }) 
     }).addTo(map);
 
-    const passengerGpsMarker = L.marker(localOrder.pickupCoord, {
+    const driverGpsMarker = L.marker(localOrder.driverCoord || localOrder.pickupCoord, {
         icon: L.divIcon({
             className: 'gps-container',
             html: '<div class="gps-marker"><div class="gps-inner"><i class="fa-solid fa-motorcycle" style="font-size:8px; color:#22c55e;"></i></div></div>',
@@ -86,6 +39,31 @@
 
     let routePolyline = L.polyline([], { color: '#c6ff00', weight: 4, opacity: 0.85 }).addTo(map);
 
+    // Geolocation Tracker untuk Driver
+    function toggleDriverTracking(enable) {
+        if (enable && myRole === 'driver') {
+            if (navigator.geolocation) {
+                watchId = navigator.geolocation.watchPosition((position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    localOrder.driverCoord = [lat, lng];
+                    driverGpsMarker.setLatLng([lat, lng]);
+                    
+                    // Jika status sudah diterima/menuju jemput, update secara silent tanpa trigger status ulang
+                    channel.postMessage(localOrder);
+                    localStorage.setItem('indriver_active_order', JSON.stringify(localOrder));
+                }, (err) => {
+                    console.log("GPS Error: ", err.message);
+                }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 5000 });
+            }
+        } else {
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+        }
+    }
+
     async function updateRouteAndFare() {
         try {
             const pLatLng = pickupMarker.getLatLng();
@@ -93,7 +71,6 @@
 
             localOrder.pickupCoord = [pLatLng.lat, pLatLng.lng];
             localOrder.destCoord = [dLatLng.lat, dLatLng.lng];
-            passengerGpsMarker.setLatLng(pLatLng);
 
             const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${pLatLng.lng},${pLatLng.lat};${dLatLng.lng},${dLatLng.lat}?overview=full&geometries=geojson`);
             const data = await res.json();
@@ -108,6 +85,7 @@
                 calculatedFare = 9000 + Math.round(routeDistanceKm * 2500);
                 if(localOrder.status === 'idle') {
                     localOrder.price = calculatedFare;
+                    driverCustomOfferPrice = calculatedFare;
                 }
             }
         } catch(e) {
@@ -126,6 +104,17 @@
     function toggleRole() {
         myRole = (myRole === 'passenger') ? 'driver' : 'passenger';
         window.history.replaceState({}, '', `?role=${myRole}`);
+        
+        // Atur ulang draggable marker berdasarkan role aktif
+        if(myRole === 'passenger') {
+            pickupMarker.dragging.enable();
+            destMarker.dragging.enable();
+            toggleDriverTracking(false);
+        } else {
+            pickupMarker.dragging.disable();
+            destMarker.dragging.disable();
+            toggleDriverTracking(true);
+        }
         renderUI(localOrder);
     }
 
@@ -144,30 +133,30 @@
     channel.onmessage = (event) => {
         if(event.data) {
             localOrder = event.data;
+            if(localOrder.driverCoord) {
+                driverGpsMarker.setLatLng(localOrder.driverCoord);
+            }
             renderUI(localOrder);
         }
     };
 
-    // Auto-sync interval untuk menjamin tab driver menangkap status tanpa jeda
+    // Auto-sync interval
     setInterval(() => {
         const saved = localStorage.getItem('indriver_active_order');
         if(saved) {
             const parsed = JSON.parse(saved);
-            if(parsed.status !== localOrder.status || parsed.price !== localOrder.price) {
+            if(parsed.status !== localOrder.status || parsed.price !== localOrder.price || parsed.driverCoord !== localOrder.driverCoord) {
                 localOrder = parsed;
+                if(localOrder.driverCoord) {
+                    driverGpsMarker.setLatLng(localOrder.driverCoord);
+                }
                 renderUI(localOrder);
             }
         }
     }, 500);
 
-    window.addEventListener('storage', (e) => {
-        if (e.key === 'indriver_active_order' && e.newValue) {
-            localOrder = JSON.parse(e.newValue);
-            renderUI(localOrder);
-        }
-    });
-
     updateRouteAndFare();
+    if(myRole === 'driver') { toggleDriverTracking(true); }
 
     function renderUI(order) {
         const title = document.getElementById('header-title');
@@ -189,23 +178,24 @@
                             <div class="bg-[#212325] border border-[#c6ff00] px-3 py-2 rounded-xl flex items-center space-x-2"><i class="fa-solid fa-motorcycle text-[#c6ff00]"></i><span class="text-xs font-bold text-white">inMotor</span></div>
                         </div>
                         <div class="bg-[#212325] p-3 rounded-xl border border-zinc-800 space-y-1 text-xs">
-                            <div class="text-zinc-300"><i class="fa-solid fa-location-dot text-red-500 mr-2"></i> <b>Jemput:</b> Geser Pin Merah di Peta</div>
-                            <div class="text-zinc-300"><i class="fa-solid fa-flag-checkered text-blue-500 mr-2"></i> <b>Tujuan:</b> Geser Pin Biru di Peta</div>
-                            <p class="text-[10px] text-[#c6ff00] mt-1 font-semibold"><i class="fa-solid fa-route"></i> Jarak Rute: ${routeDistanceKm.toFixed(1)} km (${routeDurationMin} mnt)</p>
+                            <div class="text-zinc-300"><i class="fa-solid fa-location-dot text-red-500 mr-2"></i> <b>Jemput:</b> Geser Pin Merah</div>
+                            <div class="text-zinc-300"><i class="fa-solid fa-flag-checkered text-blue-500 mr-2"></i> <b>Tujuan:</b> Geser Pin Biru</div>
+                            <p class="text-[10px] text-[#c6ff00] mt-1 font-semibold"><i class="fa-solid fa-route"></i> Jarak: ${routeDistanceKm.toFixed(1)} km (${routeDurationMin} mnt)</p>
                         </div>
                         <div class="bg-[#212325] p-4 rounded-2xl border border-zinc-800 text-center space-y-2">
-                            <p class="text-xs text-zinc-400">Tarif Otomatis (Dasar Rp9.000 + Rp2.500/km)</p>
-                            <div class="flex items-center justify-center space-x-4">
-                                <span class="text-2xl font-black text-white">Rp ${currentPrice.toLocaleString('id-ID')}</span>
+                            <p class="text-xs text-zinc-400">Usulkan Tarif Perjalanan</p>
+                            <div class="flex items-center justify-center space-x-2">
+                                <span class="text-lg font-bold text-zinc-400">Rp</span>
+                                <input type="number" id="passenger-fare-input" value="${currentPrice}" onchange="setPassengerFare(this.value)" class="bg-black text-center text-xl font-black text-white w-36 py-1 rounded-xl border border-zinc-700 focus:outline-none focus:border-[#c6ff00]">
                             </div>
                         </div>
-                        <button onclick="passengerPublish()" class="w-full bg-[#c6ff00] text-black font-bold py-3.5 rounded-2xl text-sm shadow-xl">Cari tawaran</button>
+                        <button onclick="passengerPublish()" class="w-full bg-[#c6ff00] text-black font-bold py-3.5 rounded-2xl text-sm shadow-xl">Cari Driver (Broadcast)</button>
                     </div>`;
             } else if (currentStatus === 'searching') {
                 card.innerHTML = `
                     <div class="text-center py-4 space-y-3">
                         <i class="fa-solid fa-radar animate-spin text-[#c6ff00] text-2xl"></i>
-                        <p class="text-xs text-zinc-300">Mencari pengemudi terdekat...</p>
+                        <p class="text-xs text-zinc-300">Menunggu penawaran harga dari driver...</p>
                         <h3 class="text-lg font-black text-white">Rp ${currentPrice.toLocaleString('id-ID')}</h3>
                         <p class="text-[10px] text-zinc-400">Jarak rute: ${routeDistanceKm.toFixed(1)} km</p>
                         <button onclick="passengerCancel()" class="bg-red-500/20 text-red-400 text-xs font-bold px-4 py-2 rounded-xl">Batalkan</button>
@@ -213,72 +203,84 @@
             } else if (currentStatus === 'driver_offered') {
                 card.innerHTML = `
                     <div class="space-y-3">
-                        <h4 class="font-bold text-sm text-white">Pilih pengemudi</h4>
+                        <h4 class="font-bold text-sm text-white">Tawaran Masuk dari Driver</h4>
                         <div class="bg-[#212325] p-4 rounded-2xl border border-zinc-700 space-y-3">
-                            <div class="flex justify-between items-center"><span class="text-sm font-bold text-white">Rp ${currentPrice.toLocaleString('id-ID')}</span><span class="text-xs text-zinc-400">${routeDistanceKm.toFixed(1)} km</span></div>
+                            <div class="flex justify-between items-center"><span class="text-sm font-bold text-[#c6ff00]">Rp ${currentPrice.toLocaleString('id-ID')}</span><span class="text-xs text-zinc-400">${routeDistanceKm.toFixed(1)} km</span></div>
                             <div class="flex items-center space-x-3">
                                 <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100" class="w-12 h-12 rounded-full object-cover border border-[#c6ff00]">
-                                <div><h5 class="font-bold text-sm text-white">HELMI <span class="text-xs text-yellow-400"><i class="fa-solid fa-star"></i> 5</span></h5><p class="text-xs text-zinc-300">Honda PCX HYBRID SH</p></div>
+                                <div><h5 class="font-bold text-sm text-white">DRIVER MITRA <span class="text-xs text-yellow-400"><i class="fa-solid fa-star"></i> 5.0</span></h5><p class="text-xs text-zinc-300">Electric Vehicle Ready</p></div>
                             </div>
-                            <button onclick="passengerAccept()" class="w-full bg-[#c6ff00] text-black font-bold py-3 rounded-xl text-xs">Terima Driver Ini</button>
+                            <button onclick="passengerAccept()" class="w-full bg-[#c6ff00] text-black font-bold py-3 rounded-xl text-xs">Terima Tawaran Ini</button>
                         </div>
                     </div>`;
             } else {
                 card.innerHTML = `
                     <div class="bg-[#212325] p-4 rounded-2xl border border-zinc-800 text-center space-y-3">
                         <p class="text-xs text-[#c6ff00] font-bold"><i class="fa-solid fa-motorcycle"></i> Status: ${currentStatus.toUpperCase()}</p>
-                        <p class="text-xs text-zinc-300">Perjalanan Anda sedang ditangani oleh pengemudi.</p>
-                        <button onclick="passengerCancel()" class="w-full bg-red-500/20 text-red-400 text-xs font-bold py-2.5 rounded-xl">Batalkan / Reset</button>
+                        <p class="text-xs text-zinc-300">Perjalanan aktif dengan driver.</p>
+                        <button onclick="passengerCancel()" class="w-full bg-red-500/20 text-red-400 text-xs font-bold py-2.5 rounded-xl">Reset Perjalanan</button>
                     </div>`;
             }
         } else {
-            title.innerText = "MODE PENGEMUDI (ONLINE)";
+            title.innerText = "MODE PENGEMUDI (RADAR)";
             switchBtn.innerText = "Ke Penumpang";
             switchBtn.className = "text-[10px] bg-blue-600 text-white font-bold px-3 py-1.5 rounded-xl shadow-md";
 
             if (currentStatus === 'idle') {
                 card.innerHTML = `
-                    <div class="text-center py-6 space-y-2">
-                        <i class="fa-solid fa-radar animate-spin text-[#c6ff00] text-3xl"></i>
-                        <p class="text-xs text-zinc-400">Radar Aktif: Menunggu pesanan dari pin peta...</p>
+                    <div class="text-center py-6 space-y-3">
+                        <div class="relative flex justify-center items-center">
+                            <div class="absolute w-16 h-16 bg-[#c6ff00]/10 rounded-full animate-ping"></div>
+                            <i class="fa-solid fa-radar text-[#c6ff00] text-3xl z-10"></i>
+                        </div>
+                        <p class="text-xs font-bold text-white">Radar Driver Aktif</p>
+                        <p class="text-[10px] text-zinc-400">Menunggu pesanan baru masuk dari area sekitar...</p>
                     </div>`;
             } else if (currentStatus === 'searching') {
                 card.innerHTML = `
                     <div class="space-y-3">
                         <div class="bg-[#212325] p-4 rounded-2xl border border-zinc-700 space-y-3">
-                            <div class="flex justify-between items-center"><span class="text-xs text-zinc-400">Jarak Rute: ${routeDistanceKm.toFixed(1)} km (${routeDurationMin} mnt)</span><span class="text-sm font-bold text-[#c6ff00]">Rp ${currentPrice.toLocaleString('id-ID')}</span></div>
-                            <p class="text-xs font-bold text-white"><i class="fa-solid fa-location-dot text-red-500"></i> Orderan masuk berdasarkan pin peta</p>
-                            <button onclick="driverOffer()" class="w-full bg-[#c6ff00] text-black font-bold py-3 rounded-xl text-xs shadow-lg">Kirim Tawaran / Terima Order</button>
+                            <div class="flex justify-between items-center"><span class="text-xs text-zinc-400">Jarak: ${routeDistanceKm.toFixed(1)} km</span><span class="text-sm font-bold text-white">Tarif User: Rp ${currentPrice.toLocaleString('id-ID')}</span></div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] text-zinc-400">Tawar Harga (Counter Offer):</label>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-sm text-zinc-400">Rp</span>
+                                    <input type="number" id="driver-offer-input" value="${driverCustomOfferPrice || currentPrice}" onchange="setDriverOfferPrice(this.value)" class="bg-black text-center text-sm font-bold text-[#c6ff00] w-full py-2 rounded-xl border border-zinc-700 focus:outline-none focus:border-[#c6ff00]">
+                                </div>
+                            </div>
+                            <button onclick="driverOffer()" class="w-full bg-[#c6ff00] text-black font-bold py-3 rounded-xl text-xs shadow-lg">Kirim Tawaran ke Penumpang</button>
                         </div>
                     </div>`;
             } else if (currentStatus === 'driver_offered') {
-                card.innerHTML = `<div class="text-center py-4"><i class="fa-solid fa-spinner animate-spin text-[#c6ff00] text-xl"></i><p class="text-xs text-white mt-2">Menunggu konfirmasi penumpang...</p></div>`;
+                card.innerHTML = `<div class="text-center py-4"><i class="fa-solid fa-spinner animate-spin text-[#c6ff00] text-xl"></i><p class="text-xs text-white mt-2">Menunggu konfirmasi penumpang atas tawaran Anda...</p></div>`;
             } else if (currentStatus === 'accepted') {
                 card.innerHTML = `
                     <div class="bg-[#212325] p-4 rounded-2xl border border-zinc-800 space-y-3 text-center">
-                        <p class="text-xs text-[#c6ff00] font-bold">Menuju Titik Jemput (${routeDistanceKm.toFixed(1)} km)</p>
-                        <a href="https://www.google.com/maps/dir/?api=1&destination=${order.pickupCoord[0]},${order.pickupCoord[1]}&travelmode=driving" target="_blank" class="block w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs">Navigasi Google Maps (Titik Jemput)</a>
-                        <button onclick="driverArrived()" class="w-full bg-[#c6ff00] text-black font-bold py-2.5 rounded-xl text-xs font-bold">Saya Sudah Tiba di Jemput</button>
+                        <p class="text-xs text-[#c6ff00] font-bold">Menuju Titik Jemput</p>
+                        <a href="https://www.google.com/maps/dir/?api=1&destination=${order.pickupCoord[0]},${order.pickupCoord[1]}&travelmode=driving" target="_blank" class="block w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs">Navigasi Google Maps (Jemput)</a>
+                        <button onclick="driverArrived()" class="w-full bg-[#c6ff00] text-black font-bold py-2.5 rounded-xl text-xs">Saya Sudah Tiba di Jemput</button>
                     </div>`;
             } else if (currentStatus === 'arrived') {
                 card.innerHTML = `
                     <div class="bg-[#212325] p-4 rounded-2xl border border-zinc-800 space-y-3 text-center">
-                        <p class="text-xs text-yellow-400 font-bold"><i class="fa-solid fa-bell"></i> Menunggu Penumpang Naik</p>
-                        <button onclick="driverStartTrip()" class="w-full bg-[#c6ff00] text-black font-bold py-2.5 rounded-xl text-xs">Mulai Perjalanan ke Tujuan</button>
+                        <p class="text-xs text-yellow-400 font-bold"><i class="fa-solid fa-bell"></i> Penumpang sedang dicari / bersiap</p>
+                        <button onclick="driverStartTrip()" class="w-full bg-[#c6ff00] text-black font-bold py-2.5 rounded-xl text-xs">Mulai Perjalanan</button>
                     </div>`;
             } else if (currentStatus === 'delivering') {
                 card.innerHTML = `
                     <div class="bg-[#212325] p-4 rounded-2xl border border-zinc-800 space-y-3 text-center">
-                        <a href="https://www.google.com/maps/dir/?api=1&destination=${order.destCoord[0]},${order.destCoord[1]}&travelmode=driving" target="_blank" class="block w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs">Navigasi Google Maps (Titik Tujuan)</a>
+                        <a href="https://www.google.com/maps/dir/?api=1&destination=${order.destCoord[0]},${order.destCoord[1]}&travelmode=driving" target="_blank" class="block w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs">Navigasi Google Maps (Tujuan)</a>
                         <button onclick="driverFinish()" class="w-full bg-[#c6ff00] text-black font-bold py-2.5 rounded-xl text-xs">Selesaikan Perjalanan</button>
                     </div>`;
             }
         }
     }
 
+    function setPassengerFare(val) { localOrder.price = parseInt(val) || calculatedFare; }
+    function setDriverOfferPrice(val) { driverCustomOfferPrice = parseInt(val) || calculatedFare; }
+
     function passengerPublish() { 
         localOrder.status = 'searching';
-        localOrder.price = calculatedFare;
         updateOrder(localOrder); 
     }
     function passengerCancel() { 
@@ -286,7 +288,11 @@
         localOrder.price = calculatedFare;
         updateOrder(localOrder); 
     }
-    function driverOffer() { localOrder.status = 'driver_offered'; updateOrder(localOrder); }
+    function driverOffer() { 
+        localOrder.status = 'driver_offered'; 
+        localOrder.price = driverCustomOfferPrice || localOrder.price;
+        updateOrder(localOrder); 
+    }
     function passengerAccept() { localOrder.status = 'accepted'; updateOrder(localOrder); }
     function driverArrived() { localOrder.status = 'arrived'; updateOrder(localOrder); }
     function driverStartTrip() { localOrder.status = 'delivering'; updateOrder(localOrder); }
@@ -297,8 +303,5 @@
         alert("Perjalanan Selesai!"); 
     }
 
-    document.getElementById('menu-btn').addEventListener('click', () => { document.getElementById('sidebar').classList.remove('-translate-x-full'); document.getElementById('backdrop').classList.add('hidden'); });
+    document.getElementById('menu-btn').addEventListener('click', () => { document.getElementById('sidebar').classList.remove('-translate-x-full'); document.getElementById('backdrop').classList.remove('hidden'); });
     document.getElementById('backdrop').addEventListener('click', () => { closeSidebar(); });
-</script>
-</body>
-</html>
